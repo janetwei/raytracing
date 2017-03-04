@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <omp.h>
 
 #include "math-toolkit.h"
 #include "primitives.h"
@@ -467,6 +468,8 @@ void raytracing(uint8_t *pixels, color background_color,
     idx_stack stk;
 
     int factor = sqrt(SAMPLES);
+    #pragma omp parallel private(object_color,stk,d)
+    #pragma omp for schedule(static,omp_get_max_threads())
     for (int j = 0; j < height; j++) {
         for (int i = 0; i < width; i++) {
             double r = 0, g = 0, b = 0;
