@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <time.h>
+#include <pthread.h>
 
 #include "primitives.h"
 #include "raytracing.h"
@@ -33,6 +34,7 @@ static double diff_in_second(struct timespec t1, struct timespec t2)
 
 int main()
 {
+    int THREAD_NUM = 64;
     uint8_t *pixels;
     light_node lights = NULL;
     rectangular_node rectangulars = NULL;
@@ -49,14 +51,39 @@ int main()
     printf("# Rendering scene\n");
     /* do the ray tracing with the given geometry */
     clock_gettime(CLOCK_REALTIME, &start);
-    raytracing(pixels, background,
-               rectangulars, spheres, lights, &view, ROWS, COLS);
+
+    pthread_t *id = (pthread_t *) malloc(THREAD_NUM * sizeof(pthread_t));
+    rays_arg **tmp = (rays_arg **) malloc(THREAD_NUM * sizeof(rays_arg));
+    for(int i=0; i<THREAD_NUM; i++) {
+        tmp[i]=(rays_arg *)malloc(sizeof(rays_arg));
+        tmp[i]->pixels = pixels;
+        tmp[i]->background_color =  background;
+        tmp[i]->rectangulars = rectangulars;
+        tmp[i]->spheres = spheres;
+        tmp[i]->lights = lights;
+        tmp[i]->view = &view;
+        tmp[i]->width = ROWS;
+        tmp[i]->height = COLS;
+        tmp[i]->t_id = i;
+        tmp[i]->t_num = THREAD_NUM;
+        pthread_create(&id[i], NULL, (void *) &raytracing, (void *) tmp[i]);
+    }
+    for(int i=0; i<THREAD_NUM; i++) {
+        pthread_join(id[i],NULL);
+    }
+
+    /* raytracing(pixels, background,
+                rectangulars, spheres, lights, &view, ROWS, COLS);*/
     clock_gettime(CLOCK_REALTIME, &end);
     {
         FILE *outfile = fopen(OUT_FILENAME, "wb");
         write_to_ppm(outfile, pixels, ROWS, COLS);
         fclose(outfile);
     }
+    for(int i=0; i<THREAD_NUM; i++) {
+        free(tmp[i]);
+    }
+    free(tmp);
 
     delete_rectangular_list(&rectangulars);
     delete_sphere_list(&spheres);
